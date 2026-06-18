@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink text-gray-200;
+}
+
+.card {
+  @apply bg-panel border border-edge rounded-xl p-4;
+}
+
+.stat {
+  @apply text-2xl font-semibold tabular-nums;
+}
+
+.label {
+  @apply text-xs uppercase tracking-wide text-muted;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium;
+}
+
+.mono {
+  @apply font-mono;
+}
+
+table.grid-table {
+  @apply w-full text-sm;
+}
+table.grid-table th {
+  @apply text-left text-xs uppercase tracking-wide text-muted font-medium py-2 px-3 border-b border-edge;
+}
+table.grid-table td {
+  @apply py-2 px-3 border-b border-edge/50 tabular-nums;
+}
+table.grid-table tr:hover td {
+  @apply bg-panel2/50;
+}

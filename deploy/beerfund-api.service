@@ -1,0 +1,30 @@
+[Unit]
+Description=Beer Fund read API (FastAPI/uvicorn) — read-only over Postgres
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=beerfund
+Group=beerfund
+WorkingDirectory=/opt/beerfund
+EnvironmentFile=/etc/beerfund/beerfund.env
+
+# Bind to localhost; put a TLS reverse proxy (Caddy/nginx) in front for the
+# public origin Vercel calls. DATABASE_URL, ANTHROPIC_API_KEY, CORS_ORIGINS
+# come from the EnvironmentFile.
+ExecStart=/opt/beerfund/.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
+
+Restart=always
+RestartSec=10
+
+# Pure read service: no private keys, signs nothing, writes no files.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

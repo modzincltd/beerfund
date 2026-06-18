@@ -1,0 +1,81 @@
+#cloud-config
+# Paste this into DigitalOcean's "User data" field when creating the Droplet
+# (Create > Droplets > Advanced options > Add Initialization scripts).
+# It prepares everything EXCEPT the code and the secret key:
+#   - installs python3
+#   - creates the unprivileged 'beerfund' user and writable dirs
+#   - drops the systemd unit and an env-file stub (no real key in it)
+#   - enables a firewall (SSH only)
+# After the Droplet boots, push the code from your laptop:
+#   deploy/sync.sh root@<DROPLET_IP>
+# then set the key:  ssh root@<IP> 'nano /etc/beerfund/beerfund.env'
+#                    ssh root@<IP> 'systemctl start beerfund-paper'
+
+package_update: true
+packages:
+  - python3
+  - rsync
+  - ufw
+
+users:
+  - name: beerfund
+    system: true
+    home: /opt/beerfund
+    shell: /usr/sbin/nologin
+
+write_files:
+  - path: /etc/systemd/system/beerfund-paper.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Beer Fund paper-trading daemon (zero-capital research)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=beerfund
+      Group=beerfund
+      WorkingDirectory=/opt/beerfund
+      EnvironmentFile=/etc/beerfund/beerfund.env
+      ExecStart=/usr/bin/python3 -u paper_trader.py
+      KillSignal=SIGINT
+      TimeoutStopSec=30
+      Restart=always
+      RestartSec=10
+      NoNewPrivileges=true
+      ProtectSystem=strict
+      ProtectHome=true
+      PrivateTmp=true
+      PrivateDevices=true
+      ProtectKernelTunables=true
+      ProtectKernelModules=true
+      ProtectControlGroups=true
+      RestrictSUIDSGID=true
+      LockPersonality=true
+      RestrictRealtime=true
+      ReadWritePaths=/opt/beerfund/data /opt/beerfund/results
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/beerfund/beerfund.env
+    permissions: '0640'
+    owner: root:beerfund
+    content: |
+      # FILL THESE IN, then: systemctl start beerfund-paper
+      HELIUS_API_KEY=your-helius-key-here
+      WALLETS=2QMCjkbBAkgvW9Az4ThWCUjB6L5oFfTgpbxeCrLi2xvQ
+      PAPER_SIZE=0.5
+      PAPER_POLL=15
+      PAPER_MIN_SIGNAL=1.0
+      PAPER_MAX_POSITIONS=8
+
+runcmd:
+  - mkdir -p /opt/beerfund/data/paper /opt/beerfund/results
+  - chown -R beerfund:beerfund /opt/beerfund
+  - ufw allow OpenSSH
+  - ufw --force enable
+  - systemctl daemon-reload
+  - systemctl enable beerfund-paper
+  - echo "cloud-init done: push code with deploy/sync.sh, set the Helius key, then start the service" > /opt/beerfund/CLOUD_INIT_DONE

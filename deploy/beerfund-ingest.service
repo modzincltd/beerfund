@@ -1,0 +1,29 @@
+[Unit]
+Description=Beer Fund ingest — mirror paper trades/state into Postgres (read model)
+After=network-online.target beerfund-paper.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=beerfund
+Group=beerfund
+WorkingDirectory=/opt/beerfund
+EnvironmentFile=/etc/beerfund/beerfund.env
+
+# Uses the venv created by deploy/setup-web.sh (psycopg lives there; the paper
+# daemon stays stdlib-only and is unaffected).
+ExecStart=/opt/beerfund/.venv/bin/python -u ingest.py --interval 15
+
+Restart=always
+RestartSec=10
+
+# Reads the daemon's CSV/state only; writes nothing to disk (state goes to Postgres).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

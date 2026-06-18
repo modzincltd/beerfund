@@ -1,0 +1,25 @@
+[Unit]
+Description=Beer Fund wallet audit sweep (follow pool + discovery candidates)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# oneshot: run a single sweep then exit. The .timer drives the cadence.
+Type=oneshot
+User=beerfund
+Group=beerfund
+WorkingDirectory=/opt/beerfund
+EnvironmentFile=/etc/beerfund/beerfund.env
+
+# Re-audit everyone we follow plus every discovery candidate, fresh from chain.
+ExecStart=/opt/beerfund/.venv/bin/python -u audit_runner.py --follow --candidates --fresh
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Helius responses are cached under data/cache/ — allow that write.
+ReadWritePaths=/opt/beerfund/data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+# Web/analysis layer only — the trading workers remain stdlib-only.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+psycopg[binary]>=3.1
+anthropic>=0.40

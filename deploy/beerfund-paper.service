@@ -1,0 +1,45 @@
+[Unit]
+Description=Beer Fund paper-trading daemon (zero-capital research)
+Documentation=https://github.com/  # your repo, if any
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=beerfund
+Group=beerfund
+WorkingDirectory=/opt/beerfund
+
+# Secrets + tuning live here, not in the repo. Created by setup.sh / cloud-init.
+EnvironmentFile=/etc/beerfund/beerfund.env
+
+# WALLETS, PAPER_SIZE, etc. are read from the EnvironmentFile above.
+# python3 -u keeps stdout unbuffered so `journalctl -f` shows lines live.
+ExecStart=/usr/bin/python3 -u paper_trader.py
+
+# The daemon catches SIGINT (Ctrl-C) to save state; send that on stop.
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# Stay up across crashes and reboots; back off so we don't hammer Helius.
+Restart=always
+RestartSec=10
+
+# --- Hardening. This process must NEVER need elevated access; it holds no
+# --- private keys and signs nothing. Lock it down accordingly.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+# Only these paths are writable: state.json and the trade-log CSV.
+ReadWritePaths=/opt/beerfund/data /opt/beerfund/results
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the Beer Fund wallet audit sweep daily (wallets rot — re-sweep)
+
+[Timer]
+# Daily at 04:17, plus catch-up if the box was off. README calls for a weekly
+# re-sweep at minimum; daily is cheap on the free Helius tier and keeps the
+# follow-pool verdicts fresh.
+OnCalendar=*-*-* 04:17:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

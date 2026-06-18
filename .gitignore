@@ -1,0 +1,27 @@
+# Secrets — NEVER commit. The deploy uses /etc/beerfund/beerfund.env instead.
+.env
+.env.*
+!.env.example
+*.key
+.DS_Store
+
+# Virtualenv / node deps / build output (never ship)
+.venv/
+node_modules/
+.next/
+
+# Local Claude settings
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated data — do not ship (cache is ~100MB+, results are local runs)
+data/cache/
+data/paper/
+results/
+
+# Keep the directories themselves so the app can write into them
+!data/
+!data/.gitkeep
