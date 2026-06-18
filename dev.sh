@@ -39,7 +39,8 @@ cleanup() { trap - EXIT INT TERM; echo; echo ">> stopping"; kill "${pids[@]}" 2>
 trap cleanup EXIT INT TERM
 
 echo ">> API        http://127.0.0.1:8000"
-.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000 & pids+=($!)
+.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000 \
+  --reload --reload-dir api --reload-dir beerfund & pids+=($!)
 echo ">> dashboard  http://localhost:3000"
 ( cd web && npm run dev ) & pids+=($!)
 
