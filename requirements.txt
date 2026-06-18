@@ -1,0 +1,4 @@
+# Python deps for the DO App Platform Python components (api service, paper
+# worker, audit worker). The buildpack installs this at the repo root.
+# Same set as the web layer; the worker now persists to Postgres too (psycopg).
+-r api/requirements.txt

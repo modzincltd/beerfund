@@ -89,15 +89,35 @@ class Daemon:
         self.min_signal = min_signal
         self.max_positions = max_positions
         self.rules = rules
-        self.state = {"last_sig": {}, "positions": {}, "realized_sol": 0.0,
-                      "n_closed": 0, "n_skipped": 0}
-        if os.path.exists(STATE_PATH):
-            self.state = json.load(open(STATE_PATH))
+        # On a server with Postgres (e.g. DO App Platform, whose disk is
+        # ephemeral) persist state to the DB so it survives redeploys; otherwise
+        # keep the stdlib-only local-file behaviour.
+        self.use_db = bool(os.environ.get("DATABASE_URL"))
+        self.store = None
+        default = {"last_sig": {}, "positions": {}, "realized_sol": 0.0,
+                   "n_closed": 0, "n_skipped": 0}
+        if self.use_db:
+            from beerfund import paper_store
+            self.store = paper_store
+            self.state = self.store.load_state()
+        else:
+            self.state = default
+            if os.path.exists(STATE_PATH):
+                self.state = json.load(open(STATE_PATH))
 
     def save(self) -> None:
+        if self.use_db:
+            self.store.save_state(self.state)
+            return
         os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
         with open(STATE_PATH, "w") as f:
             json.dump(self.state, f, indent=1)
+
+    def _log(self, row: dict) -> None:
+        if self.use_db:
+            self.store.log_trade(row)
+        else:
+            log_trade(row)
 
     # ---- signal detection ----
     def poll_wallet(self, wallet: str) -> None:
@@ -154,7 +174,7 @@ class Daemon:
             "rung": 0, "banked_sol": 0.0,
             "cost_sol": self.size + PRIORITY_FEE,
         }
-        log_trade({"ts": int(now), "event": "ENTRY", "mint": mint,
+        self._log({"ts": int(now), "event": "ENTRY", "mint": mint,
                    "wallet": wallet[:8], "fraction": 1.0, "sol": self.size,
                    "tokens": tokens, "price": f"{eff_price:.3e}",
                    "reason": "copy", "pnl_sol": ""})
@@ -169,7 +189,7 @@ class Daemon:
         sol_out = pos["tokens"] * frac * price - PRIORITY_FEE
         pos["banked_sol"] += max(sol_out, 0.0)
         pos["remaining"] = round(pos["remaining"] - frac, 9)
-        log_trade({"ts": int(time.time()), "event": "EXIT", "mint": mint,
+        self._log({"ts": int(time.time()), "event": "EXIT", "mint": mint,
                    "wallet": pos["wallet"][:8], "fraction": frac,
                    "sol": f"{max(sol_out, 0):.4f}", "tokens": "",
                    "price": f"{price:.3e}", "reason": reason, "pnl_sol": ""})
@@ -177,7 +197,7 @@ class Daemon:
             pnl = pos["banked_sol"] - pos["cost_sol"]
             self.state["realized_sol"] += pnl
             self.state["n_closed"] += 1
-            log_trade({"ts": int(time.time()), "event": "CLOSE", "mint": mint,
+            self._log({"ts": int(time.time()), "event": "CLOSE", "mint": mint,
                        "wallet": pos["wallet"][:8], "fraction": "", "sol": "",
                        "tokens": "", "price": "", "reason": reason,
                        "pnl_sol": f"{pnl:+.4f}"})
