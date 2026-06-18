@@ -40,8 +40,10 @@ CREATE TABLE IF NOT EXISTS positions (
     rung        INTEGER NOT NULL,
     banked_sol  DOUBLE PRECISION NOT NULL,
     cost_sol    DOUBLE PRECISION NOT NULL,
+    manual      BOOLEAN NOT NULL DEFAULT false,  -- true = hand-entered in the UI, not the copy daemon
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE positions ADD COLUMN IF NOT EXISTS manual BOOLEAN NOT NULL DEFAULT false;
 
 -- Singleton daemon counters from state.json.
 CREATE TABLE IF NOT EXISTS paper_state (

@@ -62,6 +62,7 @@ export interface Position {
   age_seconds: number;
   symbol: string | null;
   risk_flags: string[];
+  manual: boolean;
 }
 
 export interface Trade {

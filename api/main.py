@@ -77,6 +77,86 @@ def paper_positions() -> list[dict]:
     return queries.paper_positions()
 
 
+# ---- manual paper trades (UI-entered) --------------------------------------
+# Still zero-capital: every fill is a live Jupiter quote; no keys, no real
+# transaction. Manual positions carry manual=true so the copy daemon never
+# touches them; realized PnL is unified from the trade log (see queries.summary).
+
+class BuyRequest(BaseModel):
+    mint: str
+    size_sol: float = 0.5
+
+
+class SellRequest(BaseModel):
+    mint: str
+
+
+@app.post("/paper/buy")
+def paper_buy(req: BuyRequest) -> dict:
+    import time, datetime as dtm
+    from paper_trader import jup_quote, SOL_MINT, PRIORITY_FEE
+    from beerfund import db as bdb, paper_store
+    mint = req.mint.strip()
+    if len(mint) < 32:
+        raise HTTPException(400, "invalid token mint")
+    size = float(req.size_sol or 0)
+    if size <= 0:
+        raise HTTPException(400, "size_sol must be > 0")
+    if bdb.fetch_one("SELECT 1 AS x FROM positions WHERE mint=%s", (mint,)):
+        raise HTTPException(409, "a position for this token is already open")
+    q = jup_quote(SOL_MINT, mint, int(size * 1e9))
+    if not q or "outAmount" not in q:
+        raise HTTPException(502, "no Jupiter route for this token right now")
+    tokens = int(q["outAmount"])
+    if tokens <= 0:
+        raise HTTPException(502, "Jupiter returned a zero quote")
+    price = size / tokens
+    cost = size + PRIORITY_FEE
+    now = int(time.time())
+    ts = dtm.datetime.fromtimestamp(now, tz=dtm.timezone.utc)
+    with bdb.connect() as conn:
+        conn.execute(
+            """INSERT INTO positions (mint, wallet, entry_ts, tokens, entry_price, peak,
+                                      remaining, rung, banked_sol, cost_sol, manual, updated_at)
+               VALUES (%s, 'manual', %s, %s, %s, %s, 1.0, 0, 0.0, %s, true, now())""",
+            (mint, ts, tokens, price, price, cost),
+        )
+    paper_store.log_trade({"ts": now, "event": "ENTRY", "mint": mint, "wallet": "manual",
+                           "fraction": 1.0, "sol": size, "tokens": tokens,
+                           "price": f"{price:.3e}", "reason": "manual", "pnl_sol": ""})
+    return {"ok": True, "mint": mint, "tokens": tokens, "price": price, "size_sol": size}
+
+
+@app.post("/paper/sell")
+def paper_sell(req: SellRequest) -> dict:
+    import time
+    from paper_trader import jup_quote, SOL_MINT, PRIORITY_FEE
+    from beerfund import db as bdb, paper_store
+    mint = req.mint.strip()
+    pos = bdb.fetch_one("SELECT * FROM positions WHERE mint=%s AND manual=true", (mint,))
+    if not pos:
+        raise HTTPException(404, "no manual position for this token (the daemon manages its own exits)")
+    rem_tokens = int(int(pos["tokens"]) * float(pos["remaining"]))
+    q = jup_quote(mint, SOL_MINT, rem_tokens) if rem_tokens > 0 else None
+    if q and "outAmount" in q:
+        gross = int(q["outAmount"]) / 1e9
+        price = gross / rem_tokens if rem_tokens else 0.0
+    else:
+        gross, price = 0.0, 0.0  # unroutable: token is dead, no bid
+    sol_out = max(gross - PRIORITY_FEE, 0.0)
+    pnl = sol_out - float(pos["cost_sol"])
+    now = int(time.time())
+    paper_store.log_trade({"ts": now, "event": "EXIT", "mint": mint, "wallet": "manual",
+                           "fraction": 1.0, "sol": f"{sol_out:.4f}", "tokens": "",
+                           "price": f"{price:.3e}", "reason": "manual", "pnl_sol": ""})
+    paper_store.log_trade({"ts": now, "event": "CLOSE", "mint": mint, "wallet": "manual",
+                           "fraction": "", "sol": "", "tokens": "", "price": "",
+                           "reason": "manual", "pnl_sol": f"{pnl:+.4f}"})
+    with bdb.connect() as conn:
+        conn.execute("DELETE FROM positions WHERE mint=%s AND manual=true", (mint,))
+    return {"ok": True, "mint": mint, "sol_out": sol_out, "pnl_sol": pnl}
+
+
 @app.get("/trades")
 def trades(limit: int = 200, mint: str | None = None) -> list[dict]:
     return queries.trades(limit=min(limit, 1000), mint=mint)

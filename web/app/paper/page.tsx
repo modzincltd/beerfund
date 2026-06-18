@@ -1,12 +1,79 @@
 "use client";
-import useSWR from "swr";
+import { useState } from "react";
+import useSWR, { mutate } from "swr";
 import Link from "next/link";
-import { fetcher, PaperPosition, Summary } from "@/lib/api";
-import { Stat, Loading, ErrorBox, Section, DexIcon, WalletAddr, Reason, useSort, Th } from "@/components/ui";
+import { fetcher, api, PaperPosition, Summary, Position } from "@/lib/api";
+import { Stat, Loading, ErrorBox, Section, DexIcon, Reason, useSort, Th } from "@/components/ui";
 import { PnlCurve } from "@/components/PnlCurve";
-import { short, signed, pct, hold, ago, usd, num } from "@/lib/format";
+import { short, signed, pct, hold, sol, usd } from "@/lib/format";
 import { useSolPrice } from "@/lib/price";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { toast } from "@/lib/toast";
+
+const BTN = "rounded-md bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50 text-sm font-medium px-3 py-1.5";
+
+function ManualTrade() {
+  const [mint, setMint] = useState("");
+  const [size, setSize] = useState("0.5");
+  const [busy, setBusy] = useState(false);
+  const { data: positions } = useSWR<Position[]>("/positions", fetcher, { refreshInterval: 15000 });
+  const manual = (positions || []).filter((p) => p.manual);
+
+  async function refresh() {
+    await Promise.all(["/positions", "/paper/positions", "/summary", "/drawdown", "/trades?limit=500"].map((k) => mutate(k)));
+  }
+  async function buy() {
+    const m = mint.trim();
+    if (m.length < 32) { toast("Paste a valid token mint", "error"); return; }
+    setBusy(true);
+    try {
+      const r = await api<{ tokens: number }>("/paper/buy", { method: "POST", body: JSON.stringify({ mint: m, size_sol: parseFloat(size) || 0.5 }) });
+      toast(`Bought ${r.tokens.toLocaleString()} tokens`, "success");
+      setMint("");
+      await refresh();
+    } catch (e) { toast(`Buy failed: ${(e as Error).message}`, "error"); }
+    finally { setBusy(false); }
+  }
+  async function sell(m: string) {
+    setBusy(true);
+    try {
+      const r = await api<{ pnl_sol: number }>("/paper/sell", { method: "POST", body: JSON.stringify({ mint: m }) });
+      toast(`Sold — PnL ${r.pnl_sol >= 0 ? "+" : ""}${r.pnl_sol.toFixed(4)} ◎`, r.pnl_sol >= 0 ? "success" : "info");
+      await refresh();
+    } catch (e) { toast(`Sell failed: ${(e as Error).message}`, "error"); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="card">
+      <div className="label mb-2">Manual paper trade</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={mint} onChange={(e) => setMint(e.target.value)} placeholder="token mint address"
+          className="flex-1 min-w-[16rem] bg-panel2 border border-edge rounded-md text-sm px-2 py-1.5 mono" />
+        <input value={size} onChange={(e) => setSize(e.target.value)} type="number" step="0.1" min="0" aria-label="size in SOL"
+          className="w-24 bg-panel2 border border-edge rounded-md text-sm px-2 py-1.5" />
+        <span className="text-muted text-sm">◎</span>
+        <button onClick={buy} disabled={busy} className={BTN}>Buy</button>
+      </div>
+      {manual.length > 0 && (
+        <div className="mt-3">
+          <div className="text-xs text-muted mb-1">Your manual open positions</div>
+          {manual.map((p) => (
+            <div key={p.mint} className="flex items-center gap-2 border-b border-edge/40 py-1 text-sm">
+              <span className="mono">{p.symbol || short(p.mint, 6)}<DexIcon mint={p.mint} /></span>
+              <span className="text-muted text-xs ml-auto">{sol(p.cost_sol, 3)} cost · {hold(Math.round(p.age_seconds))}</span>
+              <button onClick={() => sell(p.mint)} disabled={busy}
+                className="rounded-md bg-bad/15 text-bad hover:bg-bad/25 disabled:opacity-50 text-xs font-medium px-2.5 py-1">Sell</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="text-xs text-muted mt-2">
+        Fills at a live Jupiter quote — zero capital, no keys. Copy-daemon positions are managed by the rules engine and aren&apos;t sold here.
+      </div>
+    </div>
+  );
+}
 
 const POLL = { refreshInterval: 15000 };
 const GOOD = "#3fb950", BAD = "#f85149", WARN = "#f5b301";
@@ -93,6 +160,8 @@ export default function PaperPage() {
         </div>
       </div>
 
+      <div className="mt-3"><ManualTrade /></div>
+
       <Section title={`Round trips (${trips.length})`}>
         <div className="card overflow-x-auto p-0">
           <table className="grid-table">
@@ -113,7 +182,7 @@ export default function PaperPage() {
               {tripRows.map((t, i) => (
                 <tr key={i}>
                   <td className="mono">{t.symbol || short(t.mint, 5)}<DexIcon mint={t.mint} /></td>
-                  <td>{t.wallet ? <WalletAddr wallet={t.wallet} len={4} showLabel={false} /> : "—"}</td>
+                  <td className="mono text-muted text-xs">{t.wallet ? `${t.wallet}…` : "—"}</td>
                   <td className="text-muted whitespace-nowrap">{when(t.open_ts)}</td>
                   <td className="whitespace-nowrap">
                     {t.open ? <span className="badge bg-good/10 text-good">OPEN</span> : <span className="text-muted">{when(t.close_ts)}</span>}

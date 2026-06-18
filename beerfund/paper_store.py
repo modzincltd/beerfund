@@ -50,7 +50,7 @@ def load_state() -> dict:
             state["n_skipped"] = ps["n_skipped"] or 0
             # last_sig is JSONB -> already a dict via psycopg
             state["last_sig"] = ps["last_sig"] or {}
-        for p in conn.execute("SELECT * FROM positions").fetchall():
+        for p in conn.execute("SELECT * FROM positions WHERE manual = false").fetchall():
             state["positions"][p["mint"]] = {
                 "wallet": p["wallet"],
                 "entry_ts": p["entry_ts"].timestamp(),
@@ -83,20 +83,22 @@ def save_state(state: dict) -> None:
              json.dumps(state["last_sig"])),
         )
         live = state["positions"]
-        conn.execute("DELETE FROM positions WHERE mint <> ALL(%s)",
+        # Only ever touch daemon-owned rows; manual (UI) positions are isolated.
+        conn.execute("DELETE FROM positions WHERE manual = false AND mint <> ALL(%s)",
                      (list(live.keys()) or [""],))
         for mint, p in live.items():
             conn.execute(
                 """
                 INSERT INTO positions (mint, wallet, entry_ts, tokens, entry_price,
-                                       peak, remaining, rung, banked_sol, cost_sol, updated_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
+                                       peak, remaining, rung, banked_sol, cost_sol, manual, updated_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, false, now())
                 ON CONFLICT (mint) DO UPDATE SET
                     wallet=EXCLUDED.wallet, entry_ts=EXCLUDED.entry_ts,
                     tokens=EXCLUDED.tokens, entry_price=EXCLUDED.entry_price,
                     peak=EXCLUDED.peak, remaining=EXCLUDED.remaining,
                     rung=EXCLUDED.rung, banked_sol=EXCLUDED.banked_sol,
                     cost_sol=EXCLUDED.cost_sol, updated_at=now()
+                WHERE positions.manual = false
                 """,
                 (mint, p["wallet"], _ts(p["entry_ts"]), int(p["tokens"]),
                  p["entry_price"], p["peak"], p["remaining"], int(p["rung"]),

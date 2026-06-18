@@ -40,9 +40,12 @@ def summary() -> dict:
     n_open = (db.fetch_one("SELECT count(*) c FROM positions") or {}).get("c", 0)
     first = db.fetch_one("SELECT min(ts) t FROM trades")
     last = db.fetch_one("SELECT max(ts) t FROM trades")
+    # Realized + closed counts come from the trade log so manual closes are
+    # included alongside the daemon's (paper_state tracks only the daemon).
+    cl = db.fetch_one("SELECT count(*) c, COALESCE(sum(pnl_sol), 0) s FROM trades WHERE event='CLOSE'") or {}
     return {
-        "realized_sol": st.get("realized_sol", 0.0),
-        "n_closed": st.get("n_closed", 0),
+        "realized_sol": float(cl.get("s") or 0.0),
+        "n_closed": cl.get("c", 0),
         "n_skipped": st.get("n_skipped", 0),
         "n_filled": n_entries,
         "n_open": n_open,
@@ -272,7 +275,8 @@ def labels() -> list[dict]:
 def set_label(wallet: str, label: str | None, tags: list[str]) -> dict:
     """Upsert a wallet's label + tags. Deletes the row if both are empty."""
     if not label and not tags:
-        db.fetch_all("DELETE FROM wallet_labels WHERE wallet=%s", (wallet,))
+        with db.connect() as conn:
+            conn.execute("DELETE FROM wallet_labels WHERE wallet=%s", (wallet,))
         return {"wallet": wallet, "label": None, "tags": []}
     with db.connect() as conn:
         conn.execute(
