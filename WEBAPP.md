@@ -102,12 +102,40 @@ your Supabase `DATABASE_URL` from the env file and applies the schema there) and
 never touches the paper-daemon service or its stdlib runtime. New units:
 `beerfund-ingest` (loop),
 `beerfund-api` (uvicorn on 127.0.0.1:8000), and `beerfund-audit.timer` (daily
-re-sweep — wallets rot). Put Caddy or nginx in front of the API for TLS, since
-the browser calls it from Vercel.
+re-sweep — wallets rot).
 
-**Frontend (Vercel).** Point Vercel at the `web/` directory, set
-`NEXT_PUBLIC_API_BASE` to your public API URL, deploy. Set `CORS_ORIGINS` on the
-droplet to the Vercel origin.
+**HTTPS for the API (required — Vercel serves HTTPS, so the browser refuses to
+call a plain-HTTP API).** With `beerfund-api` up on 127.0.0.1:8000, put Caddy in
+front via `deploy/setup-proxy.sh` — it auto-issues a Let's Encrypt cert and
+reverse-proxies to the API:
+
+```bash
+# No domain: sslip.io resolves <ip>.sslip.io to your droplet, so you get a real
+# cert with zero DNS setup. Use dashes in the IP.
+sudo BEERFUND_API_HOST=203-0-113-7.sslip.io bash /opt/beerfund/deploy/setup-proxy.sh
+# Own a domain: point api.example.com -> droplet IP first, then:
+sudo BEERFUND_API_HOST=api.example.com bash /opt/beerfund/deploy/setup-proxy.sh
+```
+
+Open **80 + 443** to the droplet (in the DigitalOcean Cloud Firewall too, if you
+use one — the script only handles ufw). Verify from your laptop:
+`curl -s https://<host>/health` → `{"ok":true}`.
+
+**Frontend (Vercel).**
+1. New Project → import the GitHub repo.
+2. **Root Directory = `web`** — the dashboard is a subdirectory; this is the step
+   people miss.
+3. Framework preset: Next.js (auto-detected).
+4. Env var `NEXT_PUBLIC_API_BASE = https://<api-host>` (the Caddy host above).
+   It's inlined at build time, so set it before the first deploy.
+5. Deploy, and note the `https://<project>.vercel.app` URL.
+
+**Close the CORS loop.** Put that Vercel URL (comma-separated for several, plus
+any custom domain) in `CORS_ORIGINS` in `/etc/beerfund/beerfund.env`, then
+`sudo systemctl restart beerfund-api`. The dashboard's GETs are CORS-simple;
+`/chat`, `/discovery/run`, and `/labels` are POSTs that preflight — all allowed
+once the origin matches. There's a chicken-and-egg: you only learn the Vercel URL
+after the first deploy, so deploy first, then set `CORS_ORIGINS` and restart.
 
 ## Safety notes (per CLAUDE.md)
 
