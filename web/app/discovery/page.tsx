@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher, api, DiscoveryRow } from "@/lib/api";
-import { Loading, ErrorBox, Verdict, WalletAddr } from "@/components/ui";
+import { Loading, ErrorBox, Verdict, WalletAddr, useSort, Th } from "@/components/ui";
 import { signed, pct, ago, usd } from "@/lib/format";
 import { useSolPrice } from "@/lib/price";
 import { toast } from "@/lib/toast";
@@ -45,6 +45,8 @@ export default function DiscoveryPage() {
       }
     },
   });
+
+  const { rows: candRows, sort: candSort } = useSort<DiscoveryRow>(data || []);
 
   async function run(useGmgn: boolean) {
     const wallets = manual.split(/\s+/).map((s) => s.trim()).filter(Boolean);
@@ -134,10 +136,18 @@ export default function DiscoveryPage() {
         <div className="card overflow-x-auto p-0">
           <table className="grid-table">
             <thead>
-              <tr><th>Wallet</th><th>Source</th><th>Status</th><th>Verdict</th><th>Win</th><th>Realized</th><th>Found</th></tr>
+              <tr>
+                <Th sort={candSort} field="wallet">Wallet</Th>
+                <Th sort={candSort} field="source">Source</Th>
+                <Th sort={candSort} field="status">Status</Th>
+                <Th sort={candSort} field="last_verdict">Verdict</Th>
+                <Th sort={candSort} field="win_rate">Win</Th>
+                <Th sort={candSort} field="total_realized_sol">Realized</Th>
+                <Th sort={candSort} field="discovered_at">Found</Th>
+              </tr>
             </thead>
             <tbody>
-              {data.map((d) => {
+              {candRows.map((d) => {
                 const u = usd(d.total_realized_sol, price);
                 return (
                   <tr key={d.wallet}>

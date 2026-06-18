@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { fetcher, WalletAudit, WalletDetail, Balances } from "@/lib/api";
 import {
-  Loading, ErrorBox, Verdict, Section, DexIcon, WalletAddr, CopyButton, Tag,
+  Loading, ErrorBox, Verdict, Section, DexIcon, WalletAddr, CopyButton, Tag, useSort, Th,
 } from "@/components/ui";
 import { short, signed, pct, hold, ago, usd, num } from "@/lib/format";
 import { useSolPrice } from "@/lib/price";
@@ -139,6 +139,8 @@ function BalancesCard({ wallet }: { wallet: string }) {
 function WalletDetailView({ wallet }: { wallet: string }) {
   const { data, error } = useSWR<WalletDetail>(`/wallets/${wallet}`, fetcher, { refreshInterval: 30000 });
   const price = useSolPrice();
+  const { rows: posRows, sort: posSort } = useSort(data?.positions || []);
+  const { rows: histRows, sort: histSort } = useSort(data?.history || []);
 
   return (
     <div>
@@ -188,9 +190,16 @@ function WalletDetailView({ wallet }: { wallet: string }) {
           <Section title={`Audited positions (${data.positions.length})`}>
             <div className="card overflow-x-auto p-0">
               <table className="grid-table">
-                <thead><tr><th>Token</th><th>PnL</th><th>Return</th><th>Hold</th><th>Swaps</th><th>State</th></tr></thead>
+                <thead><tr>
+                  <Th sort={posSort} field="mint">Token</Th>
+                  <Th sort={posSort} field="realized_pnl_sol">PnL</Th>
+                  <Th sort={posSort} field="realized_return">Return</Th>
+                  <Th sort={posSort} field="hold_seconds">Hold</Th>
+                  <Th sort={posSort} field="n_swaps">Swaps</Th>
+                  <th>State</th>
+                </tr></thead>
                 <tbody>
-                  {data.positions.slice(0, 50).map((p, i) => (
+                  {posRows.slice(0, 50).map((p, i) => (
                     <tr key={i}>
                       <td className="mono">{short(p.mint, 5)}<DexIcon mint={p.mint} /></td>
                       <td className={p.realized_pnl_sol >= 0 ? "text-good" : "text-bad"}>{signed(p.realized_pnl_sol)}</td>
@@ -212,9 +221,15 @@ function WalletDetailView({ wallet }: { wallet: string }) {
             <Section title="Verdict history">
               <div className="card overflow-x-auto p-0">
                 <table className="grid-table">
-                  <thead><tr><th>When</th><th>Verdict</th><th>Win</th><th>Realized</th><th>Decay</th></tr></thead>
+                  <thead><tr>
+                    <Th sort={histSort} field="ts">When</Th>
+                    <Th sort={histSort} field="verdict_code">Verdict</Th>
+                    <Th sort={histSort} field="win_rate">Win</Th>
+                    <Th sort={histSort} field="total_realized_sol">Realized</Th>
+                    <Th sort={histSort} field="decaying">Decay</Th>
+                  </tr></thead>
                   <tbody>
-                    {data.history.map((h, i) => (
+                    {histRows.map((h, i) => (
                       <tr key={i}>
                         <td className="text-muted">{ago(h.ts)}</td>
                         <td><Verdict code={h.verdict_code} /></td>

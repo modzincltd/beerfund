@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { VERDICT_STYLE, short } from "@/lib/format";
 import { toast } from "@/lib/toast";
@@ -160,6 +160,66 @@ export function ErrorBox({ error }: { error: Error }) {
         Is the FastAPI server up and <span className="mono">NEXT_PUBLIC_API_BASE</span> pointed at it?
       </div>
     </div>
+  );
+}
+
+// ---- sortable tables -------------------------------------------------------
+// useSort(rows, key?, dir?) returns the sorted rows + a `sort` handle; render
+// headers with <Th sort={sort} field="col">Label</Th> and map over the returned
+// rows. Nulls sort last; numbers numeric; arrays by length; else locale string.
+export type SortDir = "asc" | "desc";
+export interface Sort {
+  key: string | null;
+  dir: SortDir;
+  toggle: (k: string) => void;
+}
+
+export function useSort<T>(
+  rows: T[],
+  initialKey: string | null = null,
+  initialDir: SortDir = "asc",
+): { rows: T[]; sort: Sort } {
+  const [key, setKey] = useState<string | null>(initialKey);
+  const [dir, setDir] = useState<SortDir>(initialDir);
+  const sorted = useMemo(() => {
+    if (!key) return rows;
+    const out = [...rows];
+    out.sort((a, b) => {
+      let x = (a as Record<string, unknown>)?.[key];
+      let y = (b as Record<string, unknown>)?.[key];
+      if (Array.isArray(x)) x = x.length;
+      if (Array.isArray(y)) y = y.length;
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
+      const c =
+        typeof x === "number" && typeof y === "number"
+          ? x - y
+          : String(x).localeCompare(String(y), undefined, { numeric: true });
+      return dir === "asc" ? c : -c;
+    });
+    return out;
+  }, [rows, key, dir]);
+  const toggle = (k: string) =>
+    key === k ? setDir((d) => (d === "asc" ? "desc" : "asc")) : (setKey(k), setDir("asc"));
+  return { rows: sorted, sort: { key, dir, toggle } };
+}
+
+export function Th({
+  sort, field, children, className = "",
+}: {
+  sort: Sort; field: string; children: React.ReactNode; className?: string;
+}) {
+  const active = sort.key === field;
+  return (
+    <th
+      onClick={() => sort.toggle(field)}
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+      className={`cursor-pointer select-none hover:text-gray-200 ${className}`}
+    >
+      {children}
+      <span className="ml-1 text-[10px] text-accent">{active ? (sort.dir === "asc" ? "▲" : "▼") : ""}</span>
+    </th>
   );
 }
 

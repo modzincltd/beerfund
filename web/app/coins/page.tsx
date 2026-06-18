@@ -3,7 +3,7 @@ import { Suspense, useState } from "react";
 import useSWR from "swr";
 import { useSearchParams } from "next/navigation";
 import { fetcher, Coin } from "@/lib/api";
-import { Loading, ErrorBox, Flag, Section, DexIcon, WalletAddr } from "@/components/ui";
+import { Loading, ErrorBox, Flag, Section, DexIcon, WalletAddr, useSort, Th } from "@/components/ui";
 import { short, signed, pct, hold, ago } from "@/lib/format";
 
 interface CoinDetailResp {
@@ -21,6 +21,8 @@ interface CoinDetailResp {
 
 function CoinDetail({ mint }: { mint: string }) {
   const { data } = useSWR<CoinDetailResp>(`/coins/${mint}`, fetcher);
+  const { rows: appRows, sort: appSort } = useSort(data?.wallet_appearances || []);
+  const { rows: ptRows, sort: ptSort } = useSort(data?.paper_trades || []);
   if (!data) return <Loading what="coin" />;
   return (
     <div className="card">
@@ -30,9 +32,15 @@ function CoinDetail({ mint }: { mint: string }) {
       </div>
       <Section title={`Smart wallets that traded it (${data.wallet_appearances.length})`}>
         <table className="grid-table">
-          <thead><tr><th>Wallet</th><th>PnL</th><th>Return</th><th>Hold</th><th>State</th></tr></thead>
+          <thead><tr>
+            <Th sort={appSort} field="wallet">Wallet</Th>
+            <Th sort={appSort} field="realized_pnl_sol">PnL</Th>
+            <Th sort={appSort} field="realized_return">Return</Th>
+            <Th sort={appSort} field="hold_seconds">Hold</Th>
+            <th>State</th>
+          </tr></thead>
           <tbody>
-            {data.wallet_appearances.map((w, i) => (
+            {appRows.map((w, i) => (
               <tr key={i}>
                 <td><WalletAddr wallet={w.wallet} len={4} /></td>
                 <td className={w.realized_pnl_sol >= 0 ? "text-good" : "text-bad"}>{signed(w.realized_pnl_sol)}</td>
@@ -50,9 +58,15 @@ function CoinDetail({ mint }: { mint: string }) {
       {data.paper_trades.length > 0 && (
         <Section title="Our paper trades">
           <table className="grid-table">
-            <thead><tr><th>Time</th><th>Event</th><th>Reason</th><th>SOL</th><th>PnL</th></tr></thead>
+            <thead><tr>
+              <Th sort={ptSort} field="ts">Time</Th>
+              <Th sort={ptSort} field="event">Event</Th>
+              <Th sort={ptSort} field="reason">Reason</Th>
+              <Th sort={ptSort} field="sol">SOL</Th>
+              <Th sort={ptSort} field="pnl_sol">PnL</Th>
+            </tr></thead>
             <tbody>
-              {data.paper_trades.map((t) => (
+              {ptRows.map((t) => (
                 <tr key={t.id}>
                   <td className="text-muted">{ago(t.ts)}</td>
                   <td>{t.event}</td>
@@ -74,6 +88,7 @@ function CoinsInner() {
   const initial = params.get("mint");
   const [sel, setSel] = useState<string | null>(initial);
   const { data, error } = useSWR<Coin[]>("/coins?limit=300", fetcher, { refreshInterval: 30000 });
+  const { rows: coinRows, sort: coinSort } = useSort<Coin>(data || []);
 
   if (error) return <ErrorBox error={error} />;
   if (!data) return <Loading what="coins" />;
@@ -95,10 +110,17 @@ function CoinsInner() {
         <div className="card overflow-x-auto p-0">
           <table className="grid-table">
             <thead>
-              <tr><th>Token</th><th>Wallets</th><th>Audit hits</th><th>Paper trades</th><th>Flags</th><th>Last seen</th></tr>
+              <tr>
+                <Th sort={coinSort} field="mint">Token</Th>
+                <Th sort={coinSort} field="n_wallets">Wallets</Th>
+                <Th sort={coinSort} field="n_audit_appearances">Audit hits</Th>
+                <Th sort={coinSort} field="n_paper_trades">Paper trades</Th>
+                <th>Flags</th>
+                <Th sort={coinSort} field="last_seen">Last seen</Th>
+              </tr>
             </thead>
             <tbody>
-              {data.map((c) => (
+              {coinRows.map((c) => (
                 <tr key={c.mint} className="cursor-pointer" onClick={() => setSel(c.mint)}>
                   <td className="mono hover:text-accent">{c.symbol || short(c.mint, 6)}<DexIcon mint={c.mint} /></td>
                   <td>{c.n_wallets}</td>

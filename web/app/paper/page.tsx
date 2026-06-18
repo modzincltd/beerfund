@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher, PaperPosition, Summary, Trade } from "@/lib/api";
-import { Stat, Loading, ErrorBox, Section, DexIcon, WalletAddr } from "@/components/ui";
+import { Stat, Loading, ErrorBox, Section, DexIcon, WalletAddr, useSort, Th } from "@/components/ui";
 import { PnlCurve } from "@/components/PnlCurve";
 import { short, signed, pct, hold, ago, usd, num } from "@/lib/format";
 import { useSolPrice } from "@/lib/price";
@@ -29,6 +29,8 @@ export default function PaperPage() {
   const { data: trips, error } = useSWR<PaperPosition[]>("/paper/positions", fetcher, POLL);
   const { data: summary } = useSWR<Summary>("/summary", fetcher, POLL);
   const { data: log } = useSWR<Trade[]>(showLog ? "/trades?limit=200" : null, fetcher, POLL);
+  const { rows: tripRows, sort: tripSort } = useSort<PaperPosition>(trips || [], "open_ts", "desc");
+  const { rows: logRows, sort: logSort } = useSort<Trade>(log || [], "ts", "desc");
 
   if (error) return <ErrorBox error={error} />;
   if (!trips) return <Loading what="paper trades" />;
@@ -107,10 +109,20 @@ export default function PaperPage() {
         <div className="card overflow-x-auto p-0">
           <table className="grid-table">
             <thead>
-              <tr><th>Token</th><th>Wallet</th><th>Opened</th><th>Closed</th><th>Hold</th><th>Entry</th><th>Why</th><th>PnL</th><th>Return</th></tr>
+              <tr>
+                <Th sort={tripSort} field="mint">Token</Th>
+                <Th sort={tripSort} field="wallet">Wallet</Th>
+                <Th sort={tripSort} field="open_ts">Opened</Th>
+                <Th sort={tripSort} field="close_ts">Closed</Th>
+                <Th sort={tripSort} field="hold_seconds">Hold</Th>
+                <Th sort={tripSort} field="entry_sol">Entry</Th>
+                <Th sort={tripSort} field="close_reason">Why</Th>
+                <Th sort={tripSort} field="realized_pnl_sol">PnL</Th>
+                <Th sort={tripSort} field="realized_return">Return</Th>
+              </tr>
             </thead>
             <tbody>
-              {trips.map((t, i) => (
+              {tripRows.map((t, i) => (
                 <tr key={i}>
                   <td className="mono">{t.symbol || short(t.mint, 5)}<DexIcon mint={t.mint} /></td>
                   <td>{t.wallet ? <WalletAddr wallet={t.wallet} len={4} showLabel={false} /> : "—"}</td>
@@ -144,9 +156,16 @@ export default function PaperPage() {
         {showLog && (
           <div className="card overflow-x-auto p-0">
             <table className="grid-table">
-              <thead><tr><th>Time</th><th>Event</th><th>Token</th><th>Why</th><th>SOL</th><th>PnL</th></tr></thead>
+              <thead><tr>
+                <Th sort={logSort} field="ts">Time</Th>
+                <Th sort={logSort} field="event">Event</Th>
+                <Th sort={logSort} field="mint">Token</Th>
+                <Th sort={logSort} field="reason">Why</Th>
+                <Th sort={logSort} field="sol">SOL</Th>
+                <Th sort={logSort} field="pnl_sol">PnL</Th>
+              </tr></thead>
               <tbody>
-                {(log || []).map((e) => (
+                {logRows.map((e) => (
                   <tr key={e.id}>
                     <td className="text-muted whitespace-nowrap">{ago(e.ts)}</td>
                     <td><span className={`badge ${e.event === "CLOSE" ? "bg-accent/15 text-accent" : e.event === "ENTRY" ? "bg-good/10 text-good" : "bg-panel2 text-gray-300"}`}>{e.event}</span></td>

@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { fetcher, Summary, Criteria, Position, Trade } from "@/lib/api";
-import { Stat, Loading, ErrorBox, Section, Flag, DexIcon, WalletAddr } from "@/components/ui";
+import { Stat, Loading, ErrorBox, Section, Flag, DexIcon, WalletAddr, useSort, Th } from "@/components/ui";
 import { CriteriaPanel } from "@/components/CriteriaPanel";
 import { PnlCurve } from "@/components/PnlCurve";
 import { InsightPanels } from "@/components/InsightPanels";
@@ -17,6 +17,8 @@ export default function Dashboard() {
   const { data: positions } = useSWR<Position[]>("/positions", fetcher, POLL);
   const { data: trades } = useSWR<Trade[]>("/trades?limit=15", fetcher, POLL);
   const price = useSolPrice();
+  const { rows: posRows, sort: posSort } = useSort<Position>(positions || []);
+  const { rows: tradeRows, sort: tradeSort } = useSort<Trade>(trades || [], "ts", "desc");
 
   if (error) return <ErrorBox error={error} />;
   if (!s) return <Loading what="the live state" />;
@@ -54,17 +56,17 @@ export default function Dashboard() {
           <table className="grid-table">
             <thead>
               <tr>
-                <th>Token</th>
-                <th>Wallet</th>
-                <th>Age</th>
-                <th>Remaining</th>
-                <th>Rung</th>
-                <th>Banked</th>
+                <Th sort={posSort} field="mint">Token</Th>
+                <Th sort={posSort} field="wallet">Wallet</Th>
+                <Th sort={posSort} field="age_seconds">Age</Th>
+                <Th sort={posSort} field="remaining">Remaining</Th>
+                <Th sort={posSort} field="rung">Rung</Th>
+                <Th sort={posSort} field="banked_sol">Banked</Th>
                 <th>Flags</th>
               </tr>
             </thead>
             <tbody>
-              {(positions || []).map((p) => (
+              {posRows.map((p) => (
                 <tr key={p.mint}>
                   <td>
                     <Link href={`/coins?mint=${p.mint}`} className="mono hover:text-accent">
@@ -92,10 +94,17 @@ export default function Dashboard() {
         <div className="card overflow-x-auto p-0">
           <table className="grid-table">
             <thead>
-              <tr><th>Time</th><th>Event</th><th>Token</th><th>Reason</th><th>SOL</th><th>PnL</th></tr>
+              <tr>
+                <Th sort={tradeSort} field="ts">Time</Th>
+                <Th sort={tradeSort} field="event">Event</Th>
+                <Th sort={tradeSort} field="mint">Token</Th>
+                <Th sort={tradeSort} field="reason">Reason</Th>
+                <Th sort={tradeSort} field="sol">SOL</Th>
+                <Th sort={tradeSort} field="pnl_sol">PnL</Th>
+              </tr>
             </thead>
             <tbody>
-              {(trades || []).map((t) => (
+              {tradeRows.map((t) => (
                 <tr key={t.id}>
                   <td className="text-muted">{ago(t.ts)}</td>
                   <td>
