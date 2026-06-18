@@ -36,9 +36,18 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
+    # Liveness only — deliberately does NOT touch the DB. The platform health
+    # check hits this; if it depended on Postgres, a transient DB blip (or a
+    # not-yet-propagated DATABASE_URL) would crash-loop the whole API. DB
+    # connectivity is checked separately at /ready.
+    return {"ok": True}
+
+
+@app.get("/ready")
+def ready() -> dict:
     try:
         queries.db.fetch_one("SELECT 1 AS ok")
-        return {"ok": True}
+        return {"ok": True, "db": True}
     except Exception as e:
         raise HTTPException(503, f"db unavailable: {e}")
 
