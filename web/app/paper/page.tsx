@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
 import useSWR from "swr";
-import { fetcher, PaperPosition, Summary, Trade } from "@/lib/api";
-import { Stat, Loading, ErrorBox, Section, DexIcon, WalletAddr, useSort, Th } from "@/components/ui";
+import Link from "next/link";
+import { fetcher, PaperPosition, Summary } from "@/lib/api";
+import { Stat, Loading, ErrorBox, Section, DexIcon, WalletAddr, Reason, useSort, Th } from "@/components/ui";
 import { PnlCurve } from "@/components/PnlCurve";
 import { short, signed, pct, hold, ago, usd, num } from "@/lib/format";
 import { useSolPrice } from "@/lib/price";
@@ -11,26 +11,14 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 
 const POLL = { refreshInterval: 15000 };
 const GOOD = "#3fb950", BAD = "#f85149", WARN = "#f5b301";
 
-const REASON_STYLE: Record<string, string> = {
-  tp1: "bg-good/15 text-good", tp2: "bg-good/15 text-good", tp3: "bg-good/15 text-good",
-  tp4: "bg-good/15 text-good", trail: "bg-good/15 text-good",
-  stop: "bg-bad/15 text-bad", dead: "bg-bad/15 text-bad",
-  max_hold: "bg-warn/15 text-warn", copy: "bg-panel2 text-gray-300",
-};
-function Reason({ r }: { r: string | null }) {
-  return <span className={`badge ${REASON_STYLE[r || ""] || "bg-muted/15 text-muted"}`}>{r || "—"}</span>;
-}
 const when = (s: string | null) =>
   s ? new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
 export default function PaperPage() {
   const price = useSolPrice();
-  const [showLog, setShowLog] = useState(false);
   const { data: trips, error } = useSWR<PaperPosition[]>("/paper/positions", fetcher, POLL);
   const { data: summary } = useSWR<Summary>("/summary", fetcher, POLL);
-  const { data: log } = useSWR<Trade[]>(showLog ? "/trades?limit=200" : null, fetcher, POLL);
   const { rows: tripRows, sort: tripSort } = useSort<PaperPosition>(trips || [], "open_ts", "desc");
-  const { rows: logRows, sort: logSort } = useSort<Trade>(log || [], "ts", "desc");
 
   if (error) return <ErrorBox error={error} />;
   if (!trips) return <Loading what="paper trades" />;
@@ -149,38 +137,11 @@ export default function PaperPage() {
         </div>
       </Section>
 
-      <Section
-        title="Raw event log"
-        action={<button onClick={() => setShowLog((v) => !v)} className="text-xs text-muted hover:text-white">{showLog ? "hide" : "show"}</button>}
-      >
-        {showLog && (
-          <div className="card overflow-x-auto p-0">
-            <table className="grid-table">
-              <thead><tr>
-                <Th sort={logSort} field="ts">Time</Th>
-                <Th sort={logSort} field="event">Event</Th>
-                <Th sort={logSort} field="mint">Token</Th>
-                <Th sort={logSort} field="reason">Why</Th>
-                <Th sort={logSort} field="sol">SOL</Th>
-                <Th sort={logSort} field="pnl_sol">PnL</Th>
-              </tr></thead>
-              <tbody>
-                {logRows.map((e) => (
-                  <tr key={e.id}>
-                    <td className="text-muted whitespace-nowrap">{ago(e.ts)}</td>
-                    <td><span className={`badge ${e.event === "CLOSE" ? "bg-accent/15 text-accent" : e.event === "ENTRY" ? "bg-good/10 text-good" : "bg-panel2 text-gray-300"}`}>{e.event}</span></td>
-                    <td className="mono">{short(e.mint, 5)}<DexIcon mint={e.mint} /></td>
-                    <td><Reason r={e.reason} /></td>
-                    <td>{e.sol != null ? `${e.sol} ◎` : "—"}</td>
-                    <td className={e.pnl_sol == null ? "" : e.pnl_sol >= 0 ? "text-good" : "text-bad"}>{e.pnl_sol == null ? "—" : signed(e.pnl_sol)}</td>
-                  </tr>
-                ))}
-                {showLog && !log && <tr><td colSpan={6}><Loading what="log" /></td></tr>}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
+      <div className="mt-6">
+        <Link href="/trades" className="text-sm text-accent hover:underline">
+          View the full trade log with buy → sell arrows →
+        </Link>
+      </div>
     </div>
   );
 }

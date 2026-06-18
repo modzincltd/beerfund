@@ -35,6 +35,17 @@ export function Flag({ children }: { children: React.ReactNode }) {
   return <span className="badge bg-bad/15 text-bad border border-bad/30 mr-1">{children}</span>;
 }
 
+// Exit / entry reason badge (copy, tp1..tp4, trail, stop, max_hold, dead).
+const REASON_STYLE: Record<string, string> = {
+  tp1: "bg-good/15 text-good", tp2: "bg-good/15 text-good", tp3: "bg-good/15 text-good",
+  tp4: "bg-good/15 text-good", trail: "bg-good/15 text-good",
+  stop: "bg-bad/15 text-bad", dead: "bg-bad/15 text-bad",
+  max_hold: "bg-warn/15 text-warn", copy: "bg-panel2 text-gray-300",
+};
+export function Reason({ r }: { r: string | null }) {
+  return <span className={`badge ${REASON_STYLE[r || ""] || "bg-muted/15 text-muted"}`}>{r || "—"}</span>;
+}
+
 // Small chart icon that opens a token on DexScreener. stopPropagation keeps it
 // from triggering row/card click handlers it may sit inside.
 export function DexIcon({ mint }: { mint: string }) {

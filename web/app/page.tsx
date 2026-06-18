@@ -90,7 +90,7 @@ export default function Dashboard() {
         </div>
       </Section>
 
-      <Section title="Recent trade log">
+      <Section title="Recent trade log" action={<Link href="/trades" className="text-xs text-muted hover:text-white">all trades →</Link>}>
         <div className="card overflow-x-auto p-0">
           <table className="grid-table">
             <thead>
