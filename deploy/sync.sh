@@ -19,6 +19,10 @@ echo ">> syncing $REPO_ROOT -> $TARGET:/opt/beerfund"
 rsync -az --delete \
   --exclude '.git/' \
   --exclude '.env' \
+  --exclude '.env.*' \
+  --exclude '.venv/' \
+  --exclude 'node_modules/' \
+  --exclude '.next/' \
   --exclude '__pycache__/' \
   --exclude '*.pyc' \
   --exclude '.claude/' \
@@ -31,6 +35,9 @@ rsync -az --delete \
 echo ">> running setup.sh on the Droplet"
 ssh "$TARGET" 'bash /opt/beerfund/deploy/setup.sh'
 
-echo ">> restarting service (no-op if not started yet)"
-ssh "$TARGET" 'systemctl restart beerfund-paper 2>/dev/null || true'
+echo ">> restarting services (no-op for any not yet started)"
+ssh "$TARGET" 'systemctl restart beerfund-paper beerfund-api beerfund-ingest 2>/dev/null || true'
 echo "done."
+echo
+echo "If schema.sql or api/requirements.txt changed, also run (applies schema + deps):"
+echo "  ssh $TARGET 'sudo bash /opt/beerfund/deploy/setup-web.sh'"
