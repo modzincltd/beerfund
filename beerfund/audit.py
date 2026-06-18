@@ -16,6 +16,16 @@ from dataclasses import dataclass, field
 
 from .fetch_helius import Swap
 
+# Verdict thresholds — defaults match beerfund.settings.DEFAULTS["audit"].
+# audit_runner overrides these from the Settings store before a sweep. Kept as a
+# plain mutable dict so this module stays dependency-free (no DB import).
+THRESHOLDS = {
+    "min_closed": 8,
+    "insider_return_x": 50.0,
+    "min_median_hold_s": 600,
+    "decay_ratio": 0.5,
+}
+
 
 @dataclass
 class TokenPosition:
@@ -118,11 +128,11 @@ def _fmt_hold(seconds: int) -> str:
 def verdict(rep: AuditReport) -> tuple[str, str]:
     """One-line copyability verdict: (code, reason). Codes sort best-first."""
     closed = rep.closed
-    if len(closed) < 8:
+    if len(closed) < THRESHOLDS["min_closed"]:
         return "THIN", f"only {len(closed)} closed trades in window — can't judge"
 
     fed = sum(1 for p in closed if p.transfer_fed)
-    huge = sum(1 for p in closed if p.realized_return > 50)
+    huge = sum(1 for p in closed if p.realized_return > THRESHOLDS["insider_return_x"])
     if fed or huge:
         bits = []
         if fed:
@@ -133,7 +143,7 @@ def verdict(rep: AuditReport) -> tuple[str, str]:
 
     holds = sorted(p.hold_seconds for p in closed)
     med_hold = holds[len(holds) // 2]
-    if med_hold < 600:
+    if med_hold < THRESHOLDS["min_median_hold_s"]:
         return "TOOFAST", f"median hold {_fmt_hold(med_hold)} — dies in our copy lag"
 
     if rep.total_realized_sol <= 0:
@@ -142,7 +152,7 @@ def verdict(rep: AuditReport) -> tuple[str, str]:
     half = len(closed) // 2
     old_avg = sum(p.realized_pnl_sol for p in closed[:half]) / half
     new_avg = sum(p.realized_pnl_sol for p in closed[half:]) / (len(closed) - half)
-    if new_avg < old_avg * 0.5 and old_avg > 0:
+    if new_avg < old_avg * THRESHOLDS["decay_ratio"] and old_avg > 0:
         return "DECAYING", f"avg/trade {old_avg:+.2f} -> {new_avg:+.2f} SOL"
 
     return "CANDIDATE", (f"{len(closed)} closed, wr {rep.win_rate * 100:.0f}%, "

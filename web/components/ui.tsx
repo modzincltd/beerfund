@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { VERDICT_STYLE, short } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { useLabels } from "@/lib/labels";
@@ -112,17 +113,35 @@ export function WalletAddr({
   wallet,
   len = 6,
   showLabel = true,
+  link = true,
 }: {
   wallet: string;
   len?: number;
   showLabel?: boolean;
+  link?: boolean;
 }) {
   const labels = useLabels();
   const info = labels?.[wallet];
-  return (
-    <span className="inline-flex items-center gap-1.5 flex-wrap">
+  const body = (
+    <>
       {showLabel && info?.label && <span className="font-medium text-gray-200">{info.label}</span>}
       <span className="mono text-muted">{short(wallet, len)}</span>
+    </>
+  );
+  return (
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      {link ? (
+        <Link
+          href={`/wallets?w=${wallet}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1.5 hover:text-accent"
+          title="Open wallet detail"
+        >
+          {body}
+        </Link>
+      ) : (
+        <span className="inline-flex items-center gap-1.5">{body}</span>
+      )}
       <CopyButton text={wallet} />
       {showLabel && (info?.tags || []).map((t) => <Tag key={t}>{t}</Tag>)}
     </span>

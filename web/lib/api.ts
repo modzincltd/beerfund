@@ -113,6 +113,28 @@ export interface WalletDetail {
   audit: WalletAudit;
   positions: AuditPosition[];
   history: { ts: string; verdict_code: string; win_rate: number; total_realized_sol: number; decaying: boolean }[];
+  active: { first: string | null; last: string | null };
+}
+
+export interface Balances {
+  sol: number;
+  tokens: { mint: string; amount: number }[];
+  n_tokens: number;
+}
+
+export interface Settings {
+  audit: {
+    min_closed: number;
+    insider_return_x: number;
+    min_median_hold_s: number;
+    decay_ratio: number;
+  };
+  golive: {
+    min_filled: number;
+    min_weeks: number;
+    max_drawdown_sizes: number;
+    min_passing_wallets: number;
+  };
 }
 
 export interface Coin {

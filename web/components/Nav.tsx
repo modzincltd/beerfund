@@ -8,6 +8,7 @@ const LINKS = [
   ["/coins", "Coins"],
   ["/discovery", "Discovery"],
   ["/chat", "AI Analyst"],
+  ["/settings", "Settings"],
 ];
 
 export function Nav() {

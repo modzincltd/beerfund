@@ -11,7 +11,7 @@ import datetime as dt
 import json
 import os
 
-from beerfund import db
+from beerfund import db, settings
 
 # Go-live criteria (README "Go-live criteria", agreed 2026-06-11).
 MIN_FILLED = 20
@@ -91,6 +91,7 @@ def criteria() -> dict:
     s = summary()
     dd = drawdown_sizes()
     passing = [w for w in passing_wallets() if w["verdict_code"] == "CANDIDATE"]
+    g = settings.load()["golive"]  # editable on the Settings page
 
     weeks_live = None
     if s["first_trade"]:
@@ -100,10 +101,10 @@ def criteria() -> dict:
 
     checks = {
         "duration": {
-            "label": f"≥2 weeks live & ≥20 filled positions",
+            "label": f"≥{g['min_weeks']} weeks live & ≥{g['min_filled']} filled positions",
             "weeks_live": weeks_live, "n_filled": s["n_filled"],
-            "pass": bool(weeks_live is not None and weeks_live >= MIN_WEEKS
-                         and s["n_filled"] >= MIN_FILLED),
+            "pass": bool(weeks_live is not None and weeks_live >= g["min_weeks"]
+                         and s["n_filled"] >= g["min_filled"]),
         },
         "net_positive": {
             "label": "Net-positive realized PnL after costs",
@@ -111,16 +112,16 @@ def criteria() -> dict:
             "pass": s["realized_sol"] > 0,
         },
         "drawdown": {
-            "label": f"Max drawdown ≤ {MAX_DRAWDOWN_SIZES} position-sizes",
+            "label": f"Max drawdown ≤ {g['max_drawdown_sizes']} position-sizes",
             "max_drawdown_sizes": dd["max_drawdown_sizes"],
             "pass": bool(dd["max_drawdown_sizes"] is not None
-                         and dd["max_drawdown_sizes"] <= MAX_DRAWDOWN_SIZES),
+                         and dd["max_drawdown_sizes"] <= g["max_drawdown_sizes"]),
         },
         "follow_pool": {
-            "label": f"≥2 wallets passing audit in follow pool",
+            "label": f"≥{g['min_passing_wallets']} wallets passing audit in follow pool",
             "n_passing": len(passing),
             "wallets": passing,
-            "pass": len(passing) >= MIN_PASSING_WALLETS,
+            "pass": len(passing) >= g["min_passing_wallets"],
         },
     }
     checks["all_pass"] = all(c["pass"] for c in checks.values() if isinstance(c, dict) and "pass" in c)
@@ -170,7 +171,11 @@ def wallet_detail(wallet: str) -> dict:
         "SELECT ts, verdict_code, win_rate, total_realized_sol, decaying "
         "FROM wallet_audits WHERE wallet=%s ORDER BY ts DESC LIMIT 12", (wallet,)
     )
-    return {"audit": latest, "positions": positions_, "history": history}
+    firsts = [p["first_t"] for p in positions_ if p.get("first_t")]
+    lasts = [p["last_t"] for p in positions_ if p.get("last_t")]
+    active = {"first": min(firsts) if firsts else None,
+              "last": max(lasts) if lasts else None}
+    return {"audit": latest, "positions": positions_, "history": history, "active": active}
 
 
 def coins(limit: int = 200) -> list[dict]:

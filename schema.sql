@@ -126,6 +126,15 @@ CREATE TABLE IF NOT EXISTS wallet_labels (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Tunable criteria (audit verdict thresholds + go-live gates) edited from the
+-- Settings page. Single row; JSONB merged over code defaults in beerfund.settings.
+CREATE TABLE IF NOT EXISTS settings (
+    id         INT PRIMARY KEY DEFAULT 1,
+    config     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT settings_singleton CHECK (id = 1)
+);
+
 -- Wallet discovery pipeline (GMGN leaderboards -> audit -> promote/reject).
 CREATE TABLE IF NOT EXISTS discovery_candidates (
     wallet        TEXT PRIMARY KEY,

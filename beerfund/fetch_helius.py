@@ -85,6 +85,22 @@ def fetch_swap_txs(wallet: str, api_key: str, max_pages: int = 10,
     return txs
 
 
+def fetch_balances(wallet: str, api_key: str) -> dict:
+    """Live SOL + SPL-token balances for a wallet (Helius). Read-only."""
+    url = f"{API_BASE}/{wallet}/balances?" + urllib.parse.urlencode({"api-key": api_key})
+    d = _get(url) or {}
+    sol = float(d.get("nativeBalance", 0)) / 1e9
+    tokens = []
+    for t in d.get("tokens", []):
+        dec = int(t.get("decimals", 0) or 0)
+        raw = float(t.get("amount", 0) or 0)
+        amt = raw / (10 ** dec) if dec else raw
+        if amt > 0:
+            tokens.append({"mint": t.get("mint"), "amount": amt})
+    tokens.sort(key=lambda x: x["amount"], reverse=True)
+    return {"sol": sol, "tokens": tokens, "n_tokens": len(tokens)}
+
+
 def _sol_legs(ev: dict, wallet: str) -> tuple[float, float]:
     """SOL the wallet paid / received in this swap (native SOL or wrapped SOL)."""
     paid = received = 0.0

@@ -90,6 +90,21 @@ def wallet_detail(wallet: str) -> dict:
     return d
 
 
+@app.get("/wallets/{wallet}/balances")
+def wallet_balances(wallet: str) -> dict:
+    """Live SOL + token holdings from Helius (read-only)."""
+    import os
+    from beerfund import db as bdb, fetch_helius
+    bdb._load_dotenv()
+    key = os.environ.get("HELIUS_API_KEY")
+    if not key:
+        raise HTTPException(503, "HELIUS_API_KEY not set on the API host")
+    try:
+        return fetch_helius.fetch_balances(wallet, key)
+    except Exception as e:
+        raise HTTPException(502, f"balance fetch failed: {e}")
+
+
 @app.get("/coins")
 def coins(limit: int = 200) -> list[dict]:
     return queries.coins(limit=min(limit, 1000))
@@ -160,6 +175,50 @@ def set_label(req: LabelRequest) -> dict:
         if len(tags) >= 12:
             break
     return queries.set_label(req.wallet, label, tags)
+
+
+# ---- tunable criteria (Settings page) --------------------------------------
+
+def _clamp(d: dict, key, default, lo, hi, cast=float):
+    try:
+        v = cast(d.get(key, default))
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+@app.get("/settings")
+def get_settings() -> dict:
+    from beerfund import settings
+    return settings.load()
+
+
+class SettingsRequest(BaseModel):
+    audit: dict | None = None
+    golive: dict | None = None
+
+
+@app.post("/settings")
+def post_settings(req: SettingsRequest) -> dict:
+    from beerfund import settings
+    cur = settings.load()
+    a = {**cur["audit"], **(req.audit or {})}
+    g = {**cur["golive"], **(req.golive or {})}
+    clean = {
+        "audit": {
+            "min_closed": _clamp(a, "min_closed", 8, 1, 100000, int),
+            "insider_return_x": _clamp(a, "insider_return_x", 50.0, 1, 1e6),
+            "min_median_hold_s": _clamp(a, "min_median_hold_s", 600, 0, 604800, int),
+            "decay_ratio": _clamp(a, "decay_ratio", 0.5, 0.0, 1.0),
+        },
+        "golive": {
+            "min_filled": _clamp(g, "min_filled", 20, 1, 100000, int),
+            "min_weeks": _clamp(g, "min_weeks", 2.0, 0, 520),
+            "max_drawdown_sizes": _clamp(g, "max_drawdown_sizes", 6.0, 0, 100000),
+            "min_passing_wallets": _clamp(g, "min_passing_wallets", 2, 0, 100000, int),
+        },
+    }
+    return settings.save(clean)
 
 
 # ---- AI -------------------------------------------------------------------

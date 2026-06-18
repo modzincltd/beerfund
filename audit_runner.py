@@ -23,7 +23,8 @@ import statistics
 import sys
 import time
 
-from beerfund import db
+from beerfund import db, settings
+from beerfund import audit as _audit_mod
 from beerfund.audit import audit, verdict, AuditReport, TokenPosition
 from beerfund.fetch_helius import fetch_swap_txs, parse_swaps
 from run_audit import load_dotenv
@@ -139,6 +140,8 @@ def store(conn, wallet: str, rep: AuditReport, in_follow: bool) -> int:
 
 
 def run_once(wallets: list[str], api_key: str, pages: int, fresh: bool) -> None:
+    # Apply the latest tunable criteria (Settings page) before judging wallets.
+    _audit_mod.THRESHOLDS.update(settings.load().get("audit", {}))
     with db.connect() as conn:
         for i, w in enumerate(wallets, 1):
             try:

@@ -1,6 +1,8 @@
 node_modules/
 .next/
 out/
+# one lock file only — App Platform's buildpack rejects multiple. We use npm.
+bun.lock
 .env
 .env.local
 next-env.d.ts
