@@ -78,6 +78,23 @@ export interface Trade {
   pnl_sol: number | null;
 }
 
+export interface PaperPosition {
+  mint: string;
+  symbol: string | null;
+  wallet: string | null;
+  open_ts: string;
+  close_ts: string | null;
+  hold_seconds: number | null;
+  entry_sol: number | null;
+  entry_price: number | null;
+  realized_pnl_sol: number | null;
+  realized_return: number | null;
+  close_reason: string | null;
+  n_exits: number;
+  open: boolean;
+  exits: { ts: string; reason: string | null; sol: number | null; fraction: number | null }[];
+}
+
 export interface WalletAudit {
   id: number;
   wallet: string;

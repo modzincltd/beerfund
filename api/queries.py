@@ -139,6 +139,50 @@ def positions() -> list[dict]:
     )
 
 
+def paper_positions() -> list[dict]:
+    """Reconstruct paper round-trips from the flat trade log: each ENTRY starts a
+    trip, EXITs add partial sells, CLOSE ends it (with the reason + realized PnL).
+    A mint can be traded many times over the run, so we walk chronologically."""
+    rows = db.fetch_all(
+        "SELECT ts, event, mint, wallet, fraction, sol, price, reason, pnl_sol "
+        "FROM trades ORDER BY ts ASC, id ASC"
+    )
+    symbols = {c["mint"]: c.get("symbol")
+               for c in db.fetch_all("SELECT mint, symbol FROM coins")}
+    open_trip: dict[str, dict] = {}
+    trips: list[dict] = []
+    for r in rows:
+        mint, ev = r["mint"], r["event"]
+        if ev == "ENTRY":
+            open_trip[mint] = {
+                "mint": mint, "symbol": symbols.get(mint), "wallet": r["wallet"],
+                "open_ts": r["ts"], "entry_sol": r["sol"], "entry_price": r["price"],
+                "exits": [], "close_ts": None, "close_reason": None,
+                "realized_pnl_sol": None, "open": True,
+            }
+        elif ev == "EXIT":
+            t = open_trip.get(mint)
+            if t:
+                t["exits"].append({"ts": r["ts"], "reason": r["reason"],
+                                   "sol": r["sol"], "fraction": r["fraction"]})
+        elif ev == "CLOSE":
+            t = open_trip.pop(mint, None)
+            if t:
+                t.update(close_ts=r["ts"], close_reason=r["reason"],
+                         realized_pnl_sol=r["pnl_sol"], open=False)
+                trips.append(t)
+    trips.extend(open_trip.values())  # still-open round trips
+    for t in trips:
+        ot, ct = t["open_ts"], t["close_ts"]
+        t["hold_seconds"] = int((ct - ot).total_seconds()) if ct else None
+        es = t["entry_sol"] or 0
+        pnl = t["realized_pnl_sol"]
+        t["realized_return"] = (pnl / es) if (pnl is not None and es) else None
+        t["n_exits"] = len(t["exits"])
+    trips.sort(key=lambda t: t["open_ts"], reverse=True)
+    return trips
+
+
 def trades(limit: int = 200, mint: str | None = None) -> list[dict]:
     if mint:
         return db.fetch_all(

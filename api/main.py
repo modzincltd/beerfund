@@ -72,6 +72,11 @@ def positions() -> list[dict]:
     return queries.positions()
 
 
+@app.get("/paper/positions")
+def paper_positions() -> list[dict]:
+    return queries.paper_positions()
+
+
 @app.get("/trades")
 def trades(limit: int = 200, mint: str | None = None) -> list[dict]:
     return queries.trades(limit=min(limit, 1000), mint=mint)
