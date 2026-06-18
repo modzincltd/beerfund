@@ -52,6 +52,11 @@ The workers remain stdlib-only. Only this layer needs the venv
 Postgres is hosted on **Supabase** — no Docker, nothing to run locally for the
 database. Put your connection details in `.env` and everything reads from there.
 
+**One command:** once `.env` has `DATABASE_URL`, run **`./dev.sh`** — it creates
+the venv + installs web deps on first run, then starts the API (`:8000`) and the
+dashboard (`:3000`) together; one Ctrl-C stops both. The manual steps below are
+the same thing broken out.
+
 ```bash
 # 1. config — copy the template and fill in your values
 cp .env.example .env
